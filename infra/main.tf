@@ -7,7 +7,11 @@ provider "aws" {
 }
 
 variable "aws_region" {
-    type = string
+  type = string
+}
+
+variable "private_ip" {
+  type = string
 }
 
 variable "cidr_block" {
@@ -15,22 +19,22 @@ variable "cidr_block" {
 }
 
 variable "key_name" {
-    type = string
+  type = string
 }
 
 resource "tls_private_key" "devprivkey" {
   algorithm = "RSA"
-  rsa_bits = 4096
+  rsa_bits  = 4096
 }
 
 resource "local_file" "devkey" {
-  content = tls_private_key.devprivkey.private_key_pem
+  content  = tls_private_key.devprivkey.private_key_pem
   filename = "${path.module}/${var.key_name}.pem"
 }
 
 resource "aws_key_pair" "aws_key" {
-    key_name   = var.key_name
-    public_key = tls_private_key.devprivkey.public_key_openssh
+  key_name   = var.key_name
+  public_key = tls_private_key.devprivkey.public_key_openssh
 }
 
 data "aws_ami" "amazon_linux" {
@@ -76,12 +80,12 @@ EOF
 
 resource "aws_iam_instance_profile" "test_profile" {
   name = "test_profile"
-  role = "${aws_iam_role.test_role.name}"
+  role = aws_iam_role.test_role.name
 }
 
 resource "aws_iam_role_policy" "test_policy" {
   name = "test_policy"
-  role = "${aws_iam_role.test_role.id}"
+  role = aws_iam_role.test_role.id
 
   policy = <<EOF
 {
@@ -98,19 +102,19 @@ EOF
 }
 
 resource "aws_instance" "web" {
-  ami             = data.aws_ami.amazon_linux.id
-  instance_type   = "t2.micro" 
-  key_name        = aws_key_pair.aws_key.key_name
-  subnet_id = aws_subnet.dev-subnet-public-1.id
-  vpc_security_group_ids = ["${aws_security_group.jenkins-sg.id}"]
-  iam_instance_profile = "${aws_iam_instance_profile.test_profile.name}"
-  
-  user_data       = "${file("install_jenkins.sh")}"
-  associate_public_ip_address = true
+  ami                  = data.aws_ami.amazon_linux.id
+  instance_type        = "t2.micro"
+  key_name             = aws_key_pair.aws_key.key_name
+  iam_instance_profile = aws_iam_instance_profile.test_profile.name
+  user_data            = fileexists("${file("install_jenkins.sh")}") ? "${file("install_jenkins.sh")}" : null
+  network_interface {
+    device_index         = 0
+    network_interface_id = aws_network_interface.demo-nic.id
+  }
   tags = {
-    Name = "Jenkins"
+    Name        = "Jenkins"
     Environment = "dev"
-    Area = "DevOps Infra"
+    Area        = "DevOps Infra"
   }
 }
 
